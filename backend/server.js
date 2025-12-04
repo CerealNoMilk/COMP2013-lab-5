@@ -7,6 +7,12 @@ require("dotenv").config(); //import dotenv
 const { DB_URI } = process.env; //to grab the same variable from the dotenv file
 const cors = require("cors"); //For disabling default browser security
 const Contact = require("./models/contact"); //importing the model schema
+const bcrypt = require("bcrypt"); //for hiding passwords
+const jwt = require("jsonwebtoken"); //for generating tokens
+const User = require("./models/user"); //importing user model schema
+
+
+
 
 //Middleware
 server.use(express.json()); //to ensure data is trasmitted as json
@@ -106,3 +112,35 @@ server.patch("/contacts/:id", async (request, response) => {
     response.status(500).send({ message: error.message });
   }
 });
+
+    //User Registration Route
+server.post("/register", async (request, response) => {
+  const { username, password } = request.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, password: hashedPassword });
+    await newUser.save();
+    response.send({ message: "User registered!" });
+  } catch (error) {
+    response.status(500).send(error.message);
+  }
+});
+
+    //User Login Route
+    server.post("/login", async (request, response) => {
+      const { username, password } = request.body;
+      try {
+        const user = await User.findOne({ username });
+        if (!user) {
+          return response.status(400).send({ message: "Invalid User!" });
+        }
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+          return response.status(400).send({ message: "Invalid Password!" });
+        }
+        const token = jwt.sign({ id: user._id, username }, "secretkey");
+        return response.status(200).send({ message: "Login Successful!", token: token, });
+      } catch (error) {
+        response.status(500).send({ message: error.message });
+      }
+    });
